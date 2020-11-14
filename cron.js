@@ -4,7 +4,7 @@ const users = db.Database().collection('users');
 const maps = db.Database().collection('maps');
 const systems = db.Database().collection('systems');
 const throttledQueue = require('throttled-queue');
-const throttle = throttledQueue(1, 1000, true);
+const throttle = throttledQueue(30, 1000, true);
 const axios = require('axios');
 const qs = require('querystring');
 const ObjectID = require('mongodb').ObjectID;
@@ -50,13 +50,47 @@ const RefreshToken = async ({expires_in, access_token, refresh_token}) => {
     return response.data.access_token;
 };
 
+const updatePilotShip = async (accessToken, pilot) => {
+    const ship = await eveService.getPilotShip({token: accessToken, CharacterID: pilot.CharacterID});
+    const shipType = await eveService.getType(ship.ship_type_id);
+    const user = {
+        ship: {
+            name: ship.ship_name,
+            type: shipType.name
+        }
+    };
+    if (pilot.ship.name !== user.ship.name || pilot.ship.type !== user.ship.type) {
+        await users.updateOne({
+            _id: ObjectID(pilot._id)
+        }, {
+            $set: user
+        });
+        const doc = {
+            name: pilot.CharacterName,
+            ship: user.ship
+        };
+        io.to(pilot.map).emit('updatePilotShip', doc);
+
+        await maps.updateOne({
+            'locations.system_id': parseInt(pilot.location.solar_system_id),
+            'locations.pilots': {$ne: pilot.CharacterName}
+        }, {
+            $set: {
+                'locations.$[location].pilots.$[pilot]': doc
+            }
+        }, {
+            arrayFilters: [{'location.system_id': pilot.location.solar_system_id}, {'pilot.name': pilot.CharacterName}]
+        });
+    }
+};
+
 const updatePilotLocation = async (accessToken, pilot) => {
     if (pilot.map) {
         const onlineStatus = await eveService.getPilotStatus({token: accessToken, CharacterID: pilot.CharacterID});
         const location = await eveService.getPilotLocation({token: accessToken, CharacterID: pilot.CharacterID});
         const user = {
             online: onlineStatus.online,
-            location: location
+            location: location,
         };
         await users.updateOne({
             _id: ObjectID(pilot._id)
@@ -77,7 +111,8 @@ const updatePilotLocation = async (accessToken, pilot) => {
                 $push: {
                     'locations': {
                         ...systemFrom,
-                        connections: [systemTo.system_id]
+                        connections: [systemTo.system_id],
+                        pilots: []
                     }
                 }
             });
@@ -85,7 +120,25 @@ const updatePilotLocation = async (accessToken, pilot) => {
                 io.to(pilot.map).emit('addLocation', {
                     system: {
                         ...systemFrom,
-                        connections: [systemTo.system_id]
+                        connections: [systemTo.system_id],
+                        pilots: []
+                    }
+                });
+            } else {
+                await maps.findOneAndUpdate({
+                    _id: ObjectID(pilot.map)
+                }, {
+                    $pull: {
+                        'locations.$[location].pilots': {'name': pilot.CharacterName},
+                    },
+                }, {
+                    arrayFilters: [{'location.system_id': systemFrom.system_id}]
+                });
+                io.to(pilot.map).emit('removePilot', {
+                    from: systemFrom.system_id,
+                    pilot: {
+                        name: pilot.CharacterName,
+                        ship: pilot.ship
                     }
                 });
             }
@@ -96,7 +149,11 @@ const updatePilotLocation = async (accessToken, pilot) => {
                 $push: {
                     'locations': {
                         ...systemTo,
-                        connections: [systemFrom.system_id]
+                        connections: [systemFrom.system_id],
+                        pilots: [{
+                            name: pilot.CharacterName,
+                            ship: pilot.ship
+                        }]
                     }
                 },
             });
@@ -104,30 +161,33 @@ const updatePilotLocation = async (accessToken, pilot) => {
                 io.to(pilot.map).emit('addLocation', {
                     system: {
                         ...systemTo,
-                        connections: [systemFrom.system_id]
+                        connections: [systemFrom.system_id],
+                        pilots: [{
+                            name: pilot.CharacterName,
+                            ship: pilot.ship
+                        }]
+                    }
+                });
+            } else {
+                await maps.updateOne({
+                    'locations.system_id': parseInt(user.location.solar_system_id)
+                }, {
+                    $push: {
+                        'locations.$.pilots': {
+                            name: pilot.CharacterName,
+                            ship: pilot.ship
+                        }
+                    }
+                });
+                io.to(pilot.map).emit('addPilot', {
+                    to: systemTo.system_id,
+                    pilot: {
+                        name: pilot.CharacterName,
+                        ship: pilot.ship
                     }
                 });
             }
-            io.to(pilot.map).emit('updatePilot', {
-                name: pilot.CharacterName,
-                from: systemFrom.system_id,
-                to: systemTo.system_id
-            });
-            const removeUpdate = await maps.findOneAndUpdate({
-                'locations.pilots': pilot.CharacterName
-            }, {
-                $pull: {
-                    'locations.$.pilots': pilot.CharacterName,
-                },
-            });
-            const addUpdate = await maps.findOneAndUpdate({
-                'locations.system_id': parseInt(user.location.solar_system_id),
-                'locations.pilots': {$ne: pilot.CharacterName}
-            }, {
-                $push: {
-                    'locations.$.pilots': pilot.CharacterName
-                }
-            });
+
         }
     }
 };
@@ -138,7 +198,8 @@ cron.schedule('*/5 * * * * *', async () => {
         throttle(async () => {
             const accessToken = await RefreshToken(pilot);
             await Promise.all([
-                updatePilotLocation(accessToken, pilot)
+                updatePilotLocation(accessToken, pilot),
+                updatePilotShip(accessToken, pilot)
             ]);
         });
     });

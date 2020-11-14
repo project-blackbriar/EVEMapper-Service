@@ -42,15 +42,28 @@ router.post('/active/:id', IsAuth, async (req, res) => {
 
 
 router.post('/:id/location', IsAuth, async (req, res) => {
-    console.log('Posting Location');
+    const pilots = (await users.find({
+        'location.solar_system_id': req.body.system_id,
+        online: true
+    }).toArray()).map(val => {
+        return {
+            name: val.CharacterName,
+            ship: val.ship
+        };
+    });
+    const doc = {
+        ...req.body,
+        pilots: pilots
+    };
     const data = await maps.findOneAndUpdate({
         _id: ObjectId(req.params.id),
         'locations.system_id': {$ne: req.body.system_id}
     }, {
         $push: {
-            'locations': req.body,
+            'locations': doc,
         }
     });
+    io.to(req.pilot.map).emit('addLocation', {system: doc});
     return res.sendStatus(200);
 });
 

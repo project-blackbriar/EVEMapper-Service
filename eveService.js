@@ -45,6 +45,22 @@ module.exports = class EveService {
         }
     }
 
+    async getPilotShip({token, CharacterID}) {
+        try {
+            const response = await this.ESI.get(`/characters/${CharacterID}/ship/`, {
+                params: {
+                    token,
+                }
+            });
+            return response.data;
+        } catch (ex) {
+            return null;
+        }
+    }
+    async getType(typeId) {
+        const response = await this.ESI.get(`/universe/types/${typeId}/`);
+        return response.data;
+    }
 
     async getStation(stationId) {
         const response = await this.ESI.get(`/universe/stations/${stationId}/`);

@@ -68,7 +68,7 @@ router.get('/refresh', IsAuth, async (req, res) => {
         try {
             const response = await ESIAuth.post('/oauth/token', qs.stringify({
                 grant_type: 'refresh_token',
-                refresh_token: pilot.refresh_token,
+                refresh_token: req.pilot.refresh_token,
             }), {
                 auth: {
                     username: process.env.EVE_CLIENT_ID,

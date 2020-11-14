@@ -4,6 +4,7 @@ const cors = require("cors");
 require('dotenv').config();
 const app = express();
 const db = require('./db');
+const ObjectID = require('mongodb').ObjectID;
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 
@@ -25,11 +26,15 @@ db.Connect().then(_ => {
     app.use('/maps', require('./routes/maps'));
     app.use('/systems', require('./routes/systems'));
     app.emit('ready');
-
-
     require('./cron');
 
 
+});
+
+const maps = db.Database().collection('maps');
+const IsAuth = require('./middleware/auth');
+app.get('/test', IsAuth, async (req, res) => {
+    res.sendStatus(200);
 });
 
 app.on('ready', function () {
