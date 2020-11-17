@@ -40,7 +40,7 @@ router.post('/active/:id', IsAuth, async (req, res) => {
     res.sendStatus(200);
 });
 
-
+/* Add new location to map */
 router.post('/:id/location', IsAuth, async (req, res) => {
     const pilots = (await users.find({
         'location.solar_system_id': req.body.system_id,
@@ -67,6 +67,7 @@ router.post('/:id/location', IsAuth, async (req, res) => {
     return res.sendStatus(200);
 });
 
+/* Delete location from map */
 router.delete('/:id/location/:system_id', IsAuth, async (req, res) => {
     const data = await maps.findOneAndUpdate({
         _id: ObjectId(req.params.id),
@@ -76,10 +77,18 @@ router.delete('/:id/location/:system_id', IsAuth, async (req, res) => {
             'locations': {system_id: parseInt(req.params.system_id)},
         }
     });
+    /* Need to delete all links from other locations as well */
+    await maps.updateMany({
+        'locations.connections': req.params.system_id
+    }, {
+        $pull: {
+            'locations.$.connections': req.params.system_id
+        }
+    });
     io.to(req.pilot.map).emit('removeLocation', req.params.system_id);
     return res.sendStatus(200);
 });
-
+/* Update location details */
 router.put('/:id/location', IsAuth, async (req, res) => {
     const data = await maps.updateOne({
         _id: ObjectId(req.params.id),
