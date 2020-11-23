@@ -1,27 +1,35 @@
 const axios = require('axios');
 
-module.exports = class EveService {
+const eveUrl = 'https://esi.evetech.net/latest/';
+const ESI = axios.create({
+    baseURL: eveUrl
+});
 
-    constructor() {
-        this.eveUrl = 'https://esi.evetech.net/latest/';
-        this.ESI = axios.create({
-            baseURL: this.eveUrl
-        });
-    }
+module.exports = {
+    async getHealth() {
+        try {
+            const response = await ESI.get(`/status`);
+            if (response.status === 200) {
+                return true;
+            }
+        } catch (ex) {
+            return false;
+        }
+    },
 
     async getUniverseIds(names) {
-        const response = await this.ESI.post(`universe/ids/`, names);
+        const response = await ESI.post(`universe/ids/`, names);
         return response.data;
-    }
+    },
 
     async getUniverseNames(ids) {
-        const response = await this.ESI.post(`universe/names/`, ids);
+        const response = await ESI.post(`universe/names/`, ids);
         return response.data;
-    }
+    },
 
     async getPilotStatus({token, CharacterID}) {
         try {
-            const response = await this.ESI.get(`/characters/${CharacterID}/online/`, {
+            const response = await ESI.get(`/characters/${CharacterID}/online/`, {
                 params: {
                     token,
                 }
@@ -30,11 +38,11 @@ module.exports = class EveService {
         } catch (ex) {
             return null;
         }
-    }
+    },
 
     async getPilotLocation({token, CharacterID}) {
         try {
-            const response = await this.ESI.get(`/characters/${CharacterID}/location/`, {
+            const response = await ESI.get(`/characters/${CharacterID}/location/`, {
                 params: {
                     token,
                 }
@@ -43,11 +51,11 @@ module.exports = class EveService {
         } catch (ex) {
             return null;
         }
-    }
+    },
 
     async getPilotShip({token, CharacterID}) {
         try {
-            const response = await this.ESI.get(`/characters/${CharacterID}/ship/`, {
+            const response = await ESI.get(`/characters/${CharacterID}/ship/`, {
                 params: {
                     token,
                 }
@@ -56,31 +64,31 @@ module.exports = class EveService {
         } catch (ex) {
             return null;
         }
-    }
+    },
     async getType(typeId) {
-        const response = await this.ESI.get(`/universe/types/${typeId}/`);
+        const response = await ESI.get(`/universe/types/${typeId}/`);
         return response.data;
-    }
+    },
 
     async getStation(stationId) {
-        const response = await this.ESI.get(`/universe/stations/${stationId}/`);
+        const response = await ESI.get(`/universe/stations/${stationId}/`);
         return response.data;
-    }
+    },
 
     async getCorporation(corporationId) {
-        const response = await this.ESI.get(`/corporations/${corporationId}/`);
+        const response = await ESI.get(`/corporations/${corporationId}/`);
         return response.data;
-    }
+    },
 
     async getSystem(systemId) {
-        const response = await this.ESI.get(`/universe/systems/${systemId}/`);
+        const response = await ESI.get(`/universe/systems/${systemId}/`);
         return response.data;
-    }
+    },
 
 
     async getStructure(structureId) {
         try {
-            const response = await this.ESI.get(`/universe/structures/${structureId}/`, {
+            const response = await ESI.get(`/universe/structures/${structureId}/`, {
                 params: {
                     token: store.getters.auth.access_token,
                 }
@@ -89,18 +97,18 @@ module.exports = class EveService {
         } catch (ex) {
             return false;
         }
-    }
+    },
 
 
     async getStar(starId) {
-        const response = await this.ESI.get(`/universe/stars/${starId}/`);
+        const response = await ESI.get(`/universe/stars/${starId}/`);
         return response.data;
-    }
+    },
 
 
     async setWayPoint(destination_id, add_to_beginning = false, clear_other_waypoints = true) {
         try {
-            const response = await this.ESI.post(`/ui/autopilot/waypoint/`, {}, {
+            const response = await ESI.post(`/ui/autopilot/waypoint/`, {}, {
                 params: {
                     destination_id,
                     add_to_beginning,

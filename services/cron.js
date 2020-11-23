@@ -11,6 +11,7 @@ const ObjectID = require('mongodb').ObjectID;
 const EveService = require('./eveService');
 const mapsService = require('./mapService');
 const systemService = require('./systemService');
+const eveService = require('./eveService');
 const ioService = require('./ioService');
 
 
@@ -26,8 +27,6 @@ io.on('connection', (socket) => {
     });
 });
 
-
-const eveService = new EveService();
 
 const ESIAuth = axios.create({
     baseURL: 'https://login.eveonline.com'
@@ -266,27 +265,35 @@ const updatePilotLocation = async (accessToken, pilot) => {
 };*/
 
 cron.schedule('*/5 * * * * *', async () => {
-    const allUsers = await users.find({}).toArray();
-    allUsers.map(async pilot => {
-        throttle(async () => {
-            const accessToken = await RefreshToken(pilot);
-            await Promise.all([
-                updatePilotSystem(accessToken, pilot),
-                //updatePilotShip(accessToken, pilot)
-            ]);
+    if (await eveService.getHealth()) {
+        const allUsers = await users.find({}).toArray();
+        allUsers.map(async pilot => {
+            throttle(async () => {
+                const accessToken = await RefreshToken(pilot);
+                await Promise.all([
+                    updatePilotSystem(accessToken, pilot),
+                    //updatePilotShip(accessToken, pilot)
+                ]);
+            });
         });
-    });
+    } else {
+        console.log('EVE is Offline');
+    }
 }, {});
 
 cron.schedule('* * * * *', async () => {
-    console.log('Running Online Status Checks');
-    const allUsers = await users.find({}).toArray();
-    allUsers.map(async pilot => {
-        throttle(async () => {
-            const accessToken = await RefreshToken(pilot);
-            await Promise.all([
-                updatePilotOnlineStatus(accessToken, pilot)
-            ]);
+    if (await eveService.getHealth()) {
+        console.log('Running Online Status Checks');
+        const allUsers = await users.find({}).toArray();
+        allUsers.map(async pilot => {
+            throttle(async () => {
+                const accessToken = await RefreshToken(pilot);
+                await Promise.all([
+                    updatePilotOnlineStatus(accessToken, pilot)
+                ]);
+            });
         });
-    });
+    } else {
+        console.log('EVE is Offline');
+    }
 }, {});
