@@ -26,9 +26,7 @@ db.Connect().then(_ => {
     app.use('/maps', require('./routes/maps'));
     app.use('/systems', require('./routes/systems'));
     app.emit('ready');
-    require('./cron');
-
-
+    require('./services/cron');
 });
 
 const maps = db.Database().collection('maps');

@@ -1,5 +1,5 @@
 const cron = require('node-cron');
-const db = require('./db');
+const db = require('../db');
 const users = db.Database().collection('users');
 const maps = db.Database().collection('maps');
 const systems = db.Database().collection('systems');
@@ -9,9 +9,12 @@ const axios = require('axios');
 const qs = require('querystring');
 const ObjectID = require('mongodb').ObjectID;
 const EveService = require('./eveService');
+const mapsService = require('./mapService');
+const systemService = require('./systemService');
+const ioService = require('./ioService');
 
 
-const {io} = require('./main');
+const {io} = require('../main');
 
 io.on('connection', (socket) => {
     console.log('Socket Connected');
@@ -50,75 +53,74 @@ const RefreshToken = async ({expires_in, access_token, refresh_token}) => {
     return response.data.access_token;
 };
 
-const updatePilotShip = async (accessToken, pilot) => {
-    const ship = await eveService.getPilotShip({token: accessToken, CharacterID: pilot.CharacterID});
-    const shipType = await eveService.getType(ship.ship_type_id);
-    /* Check for unicode escape in ship name and unescape if necessary */
-    var user = {};
-    if (ship.ship_name.substring(0, 2) == 'u\''){
-        var shipName = ship.ship_name.substr(2, ship.ship_name.length - 3);
-        user = {
-            ship: {
-                name: JSON.parse('"' + shipName + '"'),
-                type: shipType.name
-            }
-        };
-    } else {
-        user = {
-            ship: {
-                name: ship.ship_name,
-                type: shipType.name
-            }
-        };
-    }
-    /* Encased in try block to handle pilot not having a ship yet. */
-    try {
-        if (pilot.ship.name !== user.ship.name || pilot.ship.type !== user.ship.type) {
-            await users.updateOne({
-                _id: ObjectID(pilot._id)
-            }, {
-                $set: user
-            });
-            const doc = {
-                name: pilot.CharacterName,
-                ship: user.ship
-            };
-            io.to(pilot.map).emit('updatePilotShip', doc);
-            /* Encased in try block to handle pilot not having a location yet. */
-            try {
-                await maps.updateOne({
-                    'locations.system_id': parseInt(pilot.location.solar_system_id),
-                    'locations.pilots': {$ne: pilot.CharacterName}
-                }, {
-                    $set: {
-                        'locations.$[location].pilots.$[pilot]': doc
-                    }
-                }, {
-                    arrayFilters: [{'location.system_id': pilot.location.solar_system_id}, {'pilot.name': pilot.CharacterName}]
-                });
-            } catch (e) {
-                if (e instanceof TypeError){
-                    console.log('Pilot has no location. Need to add location for him.');
-                } else {
-                    console.log(e);
-                }
-            }
+const updatePilotOnlineStatus = async (accessToken, pilot) => {
+    const onlineStatus = await eveService.getPilotStatus({token: accessToken, CharacterID: pilot.CharacterID});
+    const user = {
+        onlineStatus
+    };
+    await users.updateOne({
+        _id: ObjectID(pilot._id)
+    }, {
+        $set: user
+    });
+    //Pilot Online Status Changed
+    if (!pilot.onlineStatus || pilot.onlineStatus?.online !== user.onlineStatus.online) {
+        if (user.onlineStatus.online) {
+            console.log(`Setting ${pilot.CharacterName} as Online`);
+            await mapsService.addPilotToMap(pilot.map, pilot);
+            await ioService.pilots.add(pilot.map, pilot);
+        } else {
+            console.log(`Setting ${pilot.CharacterName} as Offline`);
+            await mapsService.removePilotFromMaps(pilot);
+            await ioService.pilots.remove(pilot.map, pilot);
         }
-    } catch (e) {
-        if (e instanceof TypeError){
-            /* user does not have ship assigned. Assign. */
-            await users.updateOne({
-                _id: ObjectID(pilot._id)
-            }, {
-                $set: user
-            });
-            return;
-        }
-        /* Other error. Print. */
-        console.log(e);
     }
 };
 
+const updatePilotSystem = async (accessToken, pilot) => {
+    const location = (await eveService.getPilotLocation({
+        token: accessToken,
+        CharacterID: pilot.CharacterID
+    })) ?? {name: "Unknown", solar_system_id: -1};
+    const user = {
+        location
+    };
+    await users.updateOne({
+        _id: ObjectID(pilot._id)
+    }, {
+        $set: user
+    });
+
+    //Pilot System has Changed
+    if (pilot.location.solar_system_id !== user.location.solar_system_id) {
+        await Promise.all([
+                handleSystemChange(pilot, user.location),
+                mapsService.setPilotLocationToMap(pilot, user.location),
+                ioService.pilots.setLocation(pilot.map, pilot, user.location)
+            ]
+        );
+    }
+};
+
+
+const handleSystemChange = async (pilot, locationTo) => {
+    const [systemFrom, systemTo] = await Promise.all([
+            systemService.getBySystemId(pilot.location.solar_system_id),
+            systemService.getBySystemId(locationTo.solar_system_id)
+        ]
+    );
+    const [mapSystemFrom, mapSystemTo, mapConnection] = await Promise.all([
+        mapsService.addSystemToMap(pilot.map, systemFrom),
+        mapsService.addSystemToMap(pilot.map, systemTo),
+        mapsService.addConnectionToMap(pilot.map, systemFrom.system_id, systemTo.system_id)
+    ]);
+    await Promise.all([
+        mapSystemFrom ? ioService.systems.add(pilot.map, systemFrom) : null,
+        mapSystemTo ? ioService.systems.add(pilot.map, systemTo) : null,
+        mapConnection ? ioService.connections.add(pilot.map, mapConnection) : null,
+    ]);
+};
+/*
 const updatePilotLocation = async (accessToken, pilot) => {
     if (pilot.map) {
         const onlineStatus = await eveService.getPilotStatus({token: accessToken, CharacterID: pilot.CharacterID});
@@ -132,7 +134,7 @@ const updatePilotLocation = async (accessToken, pilot) => {
         }, {
             $set: user
         });
-        /* Encased in try block to handle pilot not having a location yet. */
+        /!* Encased in try block to handle pilot not having a location yet. *!/
         try {
             if (pilot.location.solar_system_id !== user.location.solar_system_id) {
                 const systemFrom = await systems.findOne({
@@ -225,11 +227,11 @@ const updatePilotLocation = async (accessToken, pilot) => {
                     });
                 }
             } else {
-                /* Check if pilot is in list for location, else add him to list */
+                /!* Check if pilot is in list for location, else add him to list *!/
                 if (!await maps.findOne({
                     'locations.system_id': parseInt(user.location.solar_system_id),
-                    'locations.pilots.name':  pilot.CharacterName,
-                })){
+                    'locations.pilots.name': pilot.CharacterName,
+                })) {
                     await maps.updateOne({
                         'locations.system_id': parseInt(user.location.solar_system_id),
                     }, {
@@ -243,13 +245,13 @@ const updatePilotLocation = async (accessToken, pilot) => {
                 }
             }
         } catch (e) {
-            if (e instanceof TypeError){
+            if (e instanceof TypeError) {
                 console.log('Pilot', pilot.CharacterName, 'has no location assigned. Skipping to wait for db update.');
             }
             console.log(e);
         }
     } else {
-        /* For dev: Add Test Map to user if user has no map. Future: add some default map to user. */
+        /!* For dev: Add Test Map to user if user has no map. Future: add some default map to user. *!/
         console.log('User', pilot.CharacterName, 'has no map assigned. Assigning Test Map.');
         const map = await maps.findOne({name: 'Test Map'});
         const user = {
@@ -261,7 +263,7 @@ const updatePilotLocation = async (accessToken, pilot) => {
             $set: user
         });
     }
-};
+};*/
 
 cron.schedule('*/5 * * * * *', async () => {
     const allUsers = await users.find({}).toArray();
@@ -269,9 +271,22 @@ cron.schedule('*/5 * * * * *', async () => {
         throttle(async () => {
             const accessToken = await RefreshToken(pilot);
             await Promise.all([
-                updatePilotLocation(accessToken, pilot),
-                updatePilotShip(accessToken, pilot)
+                updatePilotSystem(accessToken, pilot),
+                //updatePilotShip(accessToken, pilot)
             ]);
         });
     });
-});
+}, {});
+
+cron.schedule('* * * * *', async () => {
+    console.log('Running Online Status Checks');
+    const allUsers = await users.find({}).toArray();
+    allUsers.map(async pilot => {
+        throttle(async () => {
+            const accessToken = await RefreshToken(pilot);
+            await Promise.all([
+                updatePilotOnlineStatus(accessToken, pilot)
+            ]);
+        });
+    });
+}, {});
