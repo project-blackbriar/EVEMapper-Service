@@ -135,16 +135,18 @@ const handleSystemChange = async (pilot, locationTo) => {
             systemService.getBySystemId(locationTo.solar_system_id)
         ]
     );
-    const [mapSystemFrom, mapSystemTo, mapConnection] = await Promise.all([
-        mapsService.addSystemToMap(pilot.map, systemFrom),
-        mapsService.addSystemToMap(pilot.map, systemTo),
-        mapsService.addConnectionToMap(pilot.map, systemFrom.system_id, systemTo.system_id)
-    ]);
-    await Promise.all([
-        mapSystemFrom ? ioService.systems.add(pilot.map, systemFrom) : null,
-        mapSystemTo ? ioService.systems.add(pilot.map, systemTo) : null,
-        mapConnection ? ioService.connections.add(pilot.map, mapConnection) : null,
-    ]);
+    if (systemFrom.type === 'J' || systemTo.type === 'J') {
+        const [mapSystemFrom, mapSystemTo, mapConnection] = await Promise.all([
+            mapsService.addSystemToMap(pilot.map, systemFrom),
+            mapsService.addSystemToMap(pilot.map, systemTo),
+            mapsService.addConnectionToMap(pilot.map, systemFrom.system_id, systemTo.system_id)
+        ]);
+        await Promise.all([
+            mapSystemFrom ? ioService.systems.add(pilot.map, systemFrom) : null,
+            mapSystemTo ? ioService.systems.add(pilot.map, systemTo) : null,
+            mapConnection ? ioService.connections.add(pilot.map, mapConnection) : null,
+        ]);
+    }
 };
 
 cron.schedule('*/5 * * * * *', async () => {
