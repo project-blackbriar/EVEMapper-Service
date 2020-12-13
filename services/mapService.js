@@ -98,9 +98,6 @@ module.exports = {
                 }
             }
         );
-        console.log(insert.value);
-        console.log(insert.modifiedCount);
-        console.log(insert.matchedCount);
         return insert.value !== null ? newConnection : null;
     },
     async updateConnectionInMap(mapId, connection) {

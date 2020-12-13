@@ -60,7 +60,7 @@ const updatePilotShip = async (accessToken, pilot) => {
             ship
         };
         //Pilot Ship has Changed
-        if (user.ship.ship_item_id !== pilot.ship.ship_item_id) {
+        if (!pilot.ship || user.ship.ship_item_id !== pilot.ship.ship_item_id) {
             const type = await eveService.getType(ship.ship_type_id);
             user.ship = {
                 ...user.ship,
