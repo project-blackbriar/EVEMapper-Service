@@ -37,6 +37,15 @@ module.exports = {
             await this.addPilotToMap(pilot.map, pilot,);
         }
     },
+    async setPilotShipToMap(pilot, ship) {
+        const {value: pilotOnMap} = await maps.findOneAndUpdate({
+            'pilots.CharacterName': pilot.CharacterName
+        }, {
+            $set: {
+                "pilots.$.ship": ship
+            }
+        });
+    },
     async addSystemToMap(mapId, system) {
         const {value: map} = await maps.findOneAndUpdate({
             _id: ObjectID(mapId),
@@ -88,23 +97,28 @@ module.exports = {
         return connection !== null ? newConnection : null;
     },
     async updateConnectionInMap(mapId, connection) {
-        await maps.updateOne({
-            _id: ObjectID(mapId),
-            'connections.from': connection.from,
-            'connections.to': connection.to
-        }, {
-            $set: {
-                'connections.$': connection
-            }
-        });
+        try {
+            await maps.updateOne({
+                _id: ObjectID(mapId),
+                'connections.from': connection.from,
+                'connections.to': connection.to
+            }, {
+                $set: {
+                    'connections.$': connection
+                }
+            });
+        } catch (ex) {
+
+        }
     },
     async removeConnectionsForSystem(mapId, system_id) {
-        await maps.updateMany({
+        const intId = parseInt(system_id);
+        const updateFrom = await maps.updateMany({
             _id: ObjectID(mapId),
-            $or: [{'connections.from': system_id}, {'connections.to': system_id}]
+            $or: [{'connections.from': intId}, {'connections.to': intId}]
         }, {
             $pull: {
-                'connections': {$or: [{'connections.from': system_id}, {'connections.to': system_id}]}
+                'connections': { $or :[{from: intId}, {to: intId}] }
             }
         });
     }

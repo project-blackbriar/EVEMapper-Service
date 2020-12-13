@@ -38,6 +38,11 @@ module.exports = {
             await io.to(mapId).emit('setLocation', {
                 name: pilot.CharacterName, system_id: location.solar_system_id
             });
+        },
+        async setShip(mapId, pilot, ship) {
+            await io.to(mapId).emit('setPilotShip', {
+                name: pilot.CharacterName, ship
+            });
         }
     }
 };

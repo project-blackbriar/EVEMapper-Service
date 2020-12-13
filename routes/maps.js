@@ -63,13 +63,10 @@ router.post('/:id/location', IsAuth, async (req, res) => {
 
 /* Delete location from map */
 router.delete('/:id/location/:system_id', IsAuth, async (req, res) => {
-    await Promise.all([
-            mapService.removeSystemFromMap(req.params.id, req.params.system_id),
-            mapService.removeConnectionsForSystem(req.params.id, req.params.system_id),
-            ioService.systems.remove(req.params.id, req.params.system_id),
-            ioService.connections.remove(req.params.id, req.params.system_id)
-        ]
-    );
+    await mapService.removeConnectionsForSystem(req.params.id, req.params.system_id);
+    await mapService.removeSystemFromMap(req.params.id, req.params.system_id);
+    await ioService.connections.remove(req.params.id, req.params.system_id);
+    await ioService.systems.remove(req.params.id, req.params.system_id);
     return res.sendStatus(200);
 });
 /* Update location details */

@@ -52,6 +52,33 @@ const RefreshToken = async ({expires_in, access_token, refresh_token}) => {
     return response.data.access_token;
 };
 
+const updatePilotShip = async (accessToken, pilot) => {
+    const ship = await eveService.getPilotShip({token: accessToken, CharacterID: pilot.CharacterID});
+    if (ship) {
+
+        const user = {
+            ship
+        };
+        //Pilot Ship has Changed
+        if (user.ship.ship_item_id !== pilot.ship.ship_item_id) {
+            const type = await eveService.getType(ship.ship_type_id);
+            user.ship = {
+                ...user.ship,
+                type: type.name
+            };
+            await users.updateOne({
+                _id: ObjectID(pilot._id)
+            }, {
+                $set: user
+            });
+            await Promise.all([
+                mapsService.setPilotShipToMap(pilot, user.ship),
+                ioService.pilots.setShip(pilot.map, pilot, user.ship)
+            ]);
+        }
+    }
+};
+
 const updatePilotOnlineStatus = async (accessToken, pilot) => {
     const onlineStatus = await eveService.getPilotStatus({token: accessToken, CharacterID: pilot.CharacterID});
     const user = {
@@ -84,16 +111,16 @@ const updatePilotSystem = async (accessToken, pilot) => {
     const user = {
         location
     };
-    await users.updateOne({
-        _id: ObjectID(pilot._id)
-    }, {
-        $set: user
-    });
 
     //Pilot System has Changed
     if (pilot.location.solar_system_id !== user.location.solar_system_id) {
+        await users.updateOne({
+            _id: ObjectID(pilot._id)
+        }, {
+            $set: user
+        });
+        await handleSystemChange(pilot, user.location);
         await Promise.all([
-                handleSystemChange(pilot, user.location),
                 mapsService.setPilotLocationToMap(pilot, user.location),
                 ioService.pilots.setLocation(pilot.map, pilot, user.location)
             ]
@@ -119,150 +146,6 @@ const handleSystemChange = async (pilot, locationTo) => {
         mapConnection ? ioService.connections.add(pilot.map, mapConnection) : null,
     ]);
 };
-/*
-const updatePilotLocation = async (accessToken, pilot) => {
-    if (pilot.map) {
-        const onlineStatus = await eveService.getPilotStatus({token: accessToken, CharacterID: pilot.CharacterID});
-        const location = await eveService.getPilotLocation({token: accessToken, CharacterID: pilot.CharacterID});
-        const user = {
-            online: onlineStatus.online,
-            location: location,
-        };
-        await users.updateOne({
-            _id: ObjectID(pilot._id)
-        }, {
-            $set: user
-        });
-        /!* Encased in try block to handle pilot not having a location yet. *!/
-        try {
-            if (pilot.location.solar_system_id !== user.location.solar_system_id) {
-                const systemFrom = await systems.findOne({
-                    system_id: pilot.location.solar_system_id
-                });
-                const systemTo = await systems.findOne({
-                    system_id: user.location.solar_system_id
-                });
-                const systemFromUpdate = await maps.updateOne({
-                    _id: ObjectID(pilot.map),
-                    'locations.system_id': {$ne: systemFrom.system_id}
-                }, {
-                    $push: {
-                        'locations': {
-                            ...systemFrom,
-                            connections: [systemTo.system_id],
-                            pilots: []
-                        }
-                    }
-                });
-                if (systemFromUpdate.modifiedCount === 1) {
-                    io.to(pilot.map).emit('addLocation', {
-                        system: {
-                            ...systemFrom,
-                            connections: [systemTo.system_id],
-                            pilots: []
-                        }
-                    });
-                } else {
-                    await maps.findOneAndUpdate({
-                        _id: ObjectID(pilot.map)
-                    }, {
-                        $pull: {
-                            'locations.$[location].pilots': {'name': pilot.CharacterName},
-                        },
-                    }, {
-                        arrayFilters: [{'location.system_id': systemFrom.system_id}]
-                    });
-                    io.to(pilot.map).emit('removePilot', {
-                        from: systemFrom.system_id,
-                        pilot: {
-                            name: pilot.CharacterName,
-                            ship: pilot.ship
-                        }
-                    });
-                }
-                const systemToUpdate = await maps.updateOne({
-                    _id: ObjectID(pilot.map),
-                    'locations.system_id': {$ne: systemTo.system_id}
-                }, {
-                    $push: {
-                        'locations': {
-                            ...systemTo,
-                            connections: [systemFrom.system_id],
-                            pilots: [{
-                                name: pilot.CharacterName,
-                                ship: pilot.ship
-                            }]
-                        }
-                    },
-                });
-                if (systemToUpdate.modifiedCount === 1) {
-                    io.to(pilot.map).emit('addLocation', {
-                        system: {
-                            ...systemTo,
-                            connections: [systemFrom.system_id],
-                            pilots: [{
-                                name: pilot.CharacterName,
-                                ship: pilot.ship
-                            }]
-                        }
-                    });
-                } else {
-                    await maps.updateOne({
-                        'locations.system_id': parseInt(user.location.solar_system_id)
-                    }, {
-                        $push: {
-                            'locations.$.pilots': {
-                                name: pilot.CharacterName,
-                                ship: pilot.ship
-                            }
-                        }
-                    });
-                    io.to(pilot.map).emit('addPilot', {
-                        to: systemTo.system_id,
-                        pilot: {
-                            name: pilot.CharacterName,
-                            ship: pilot.ship
-                        }
-                    });
-                }
-            } else {
-                /!* Check if pilot is in list for location, else add him to list *!/
-                if (!await maps.findOne({
-                    'locations.system_id': parseInt(user.location.solar_system_id),
-                    'locations.pilots.name': pilot.CharacterName,
-                })) {
-                    await maps.updateOne({
-                        'locations.system_id': parseInt(user.location.solar_system_id),
-                    }, {
-                        $addToSet: {
-                            'locations.$.pilots': {
-                                name: pilot.CharacterName,
-                                ship: pilot.ship
-                            }
-                        }
-                    });
-                }
-            }
-        } catch (e) {
-            if (e instanceof TypeError) {
-                console.log('Pilot', pilot.CharacterName, 'has no location assigned. Skipping to wait for db update.');
-            }
-            console.log(e);
-        }
-    } else {
-        /!* For dev: Add Test Map to user if user has no map. Future: add some default map to user. *!/
-        console.log('User', pilot.CharacterName, 'has no map assigned. Assigning Test Map.');
-        const map = await maps.findOne({name: 'Test Map'});
-        const user = {
-            map: map._id
-        };
-        await users.updateOne({
-            _id: ObjectID(pilot._id)
-        }, {
-            $set: user
-        });
-    }
-};*/
 
 cron.schedule('*/5 * * * * *', async () => {
     if (await eveService.getHealth()) {
@@ -272,7 +155,7 @@ cron.schedule('*/5 * * * * *', async () => {
                 const accessToken = await RefreshToken(pilot);
                 await Promise.all([
                     updatePilotSystem(accessToken, pilot),
-                    //updatePilotShip(accessToken, pilot)
+                    updatePilotShip(accessToken, pilot)
                 ]);
             });
         });
@@ -281,7 +164,7 @@ cron.schedule('*/5 * * * * *', async () => {
     }
 }, {});
 
-cron.schedule('* * * * *', async () => {
+cron.schedule('*/30 * * * * *', async () => {
     if (await eveService.getHealth()) {
         console.log('Running Online Status Checks');
         const allUsers = await users.find({}).toArray();
