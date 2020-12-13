@@ -85,16 +85,23 @@ module.exports = {
             eol: false,
             status: 1
         };
-        const {value: connection} = await maps.findOneAndUpdate({
-            _id: ObjectID(mapId),
-            'connections.from': {$ne: systemFrom},
-            'connections.to': {$ne: systemTo}
-        }, {
-            $push: {
-                "connections": newConnection
+        const insert = await maps.findOneAndUpdate({
+                _id: ObjectID(mapId),
+                $or: [
+                    {'connections.from': {$ne: systemFrom}},
+                    {'connections.to': {$ne: systemTo}}
+                ]
+            },
+            {
+                $push: {
+                    "connections": newConnection
+                }
             }
-        });
-        return connection !== null ? newConnection : null;
+        );
+        console.log(insert.value);
+        console.log(insert.modifiedCount);
+        console.log(insert.matchedCount);
+        return insert.value !== null ? newConnection : null;
     },
     async updateConnectionInMap(mapId, connection) {
         try {
@@ -118,7 +125,7 @@ module.exports = {
             $or: [{'connections.from': intId}, {'connections.to': intId}]
         }, {
             $pull: {
-                'connections': { $or :[{from: intId}, {to: intId}] }
+                'connections': {$or: [{from: intId}, {to: intId}]}
             }
         });
     }
