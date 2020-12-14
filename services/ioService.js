@@ -35,7 +35,7 @@ module.exports = {
             await io.to(mapId).emit('removePilot', pilot.CharacterName);
         },
         async setLocation(mapId, pilot, location) {
-            await io.to(mapId).emit('setLocation', {
+            await io.to(mapId).emit('setPilotLocation', {
                 name: pilot.CharacterName, system_id: location.solar_system_id
             });
         },

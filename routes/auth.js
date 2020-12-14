@@ -81,8 +81,8 @@ router.get('/refresh', IsAuth, async (req, res) => {
             });
             const refreshData = response.data;
             await users.updateOne({
-                CharacterID: req.query.CharacterID,
-                access_token: req.query.access_token
+                CharacterID: req.pilot.CharacterID,
+                access_token: req.pilot.access_token
             }, {
                 $set: {
                     access_token: refreshData.access_token,
