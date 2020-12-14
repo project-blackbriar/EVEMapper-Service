@@ -16,7 +16,6 @@ router.post('/route', IsAuth, async (req, res) => {
 });
 
 router.delete('/route/:system/:flag', IsAuth, async (req, res) => {
-    console.log({destination: parseInt(req.params.system), flag: req.params.flag})
     await users.updateOne({
         CharacterID: req.pilot.CharacterID
     }, {

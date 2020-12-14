@@ -42,7 +42,7 @@ router.post('/active/:id', IsAuth, async (req, res) => {
             userService.setPilotMap(req.pilot, req.params.id),
             mapService.removePilotFromMaps(req.pilot)
         ]);
-        if (req.pilot.onlineStatus.online) {
+        if (req.pilot.onlineStatus?.online) {
             await mapService.addPilotToMap(req.params.id, req.pilot);
         }
         res.sendStatus(200);
@@ -110,7 +110,7 @@ router.post('/:id/pilot/:system_id', IsAuth, async (req, res) => {
 
 router.get('/:id/routes/:origin', IsAuth, async (req, res) => {
     if (req.pilot.routes) {
-        const connections = await mapService.getConnections(req.params.id)
+        const connections = await mapService.getConnections(req.params.id);
         const routes = await Promise.all(req.pilot.routes.map(async route => {
             const routeIds = await eveService.route(req.params.origin, route.destination, {
                 flag: route.flag,

@@ -27,7 +27,7 @@ module.exports = {
         async add(mapId, pilot) {
             await io.to(mapId).emit('addPilot', {
                 CharacterName: pilot.CharacterName,
-                system_id: pilot.location.solar_system_id,
+                system_id: pilot.location?.solar_system_id,
                 ship: pilot.ship
             });
         },

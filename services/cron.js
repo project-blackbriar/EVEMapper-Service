@@ -112,6 +112,12 @@ const updatePilotSystem = async (accessToken, pilot) => {
         location
     };
 
+    await users.updateOne({
+        _id: ObjectID(pilot._id)
+    }, {
+        $set: user
+    });
+
     if (!pilot.location) {
         await Promise.all([
                 mapsService.setPilotLocationToMap(pilot, user.location),
@@ -122,17 +128,18 @@ const updatePilotSystem = async (accessToken, pilot) => {
 
     //Pilot System has Changed
     if (pilot.location && pilot.location.solar_system_id !== user.location.solar_system_id) {
-        await users.updateOne({
-            _id: ObjectID(pilot._id)
-        }, {
-            $set: user
-        });
         await handleSystemChange(pilot, user.location);
         await Promise.all([
                 mapsService.setPilotLocationToMap(pilot, user.location),
                 ioService.pilots.setLocation(pilot.map, pilot, user.location)
             ]
         );
+
+        await users.updateOne({
+            _id: ObjectID(pilot._id)
+        }, {
+            $set: user
+        });
     }
 };
 

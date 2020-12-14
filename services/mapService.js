@@ -11,7 +11,7 @@ module.exports = {
             $push: {
                 pilots: {
                     CharacterName: pilot.CharacterName,
-                    system_id: pilot.location.solar_system_id,
+                    system_id: pilot.location?.system_id,
                     ship: pilot.ship
                 }
             }
@@ -35,7 +35,7 @@ module.exports = {
             }
         });
         if (!pilotOnMap) {
-            await this.addPilotToMap(pilot.map, pilot,);
+            await this.addPilotToMap(pilot.map, pilot, location.solar_system_id);
         }
     },
     async setPilotShipToMap(pilot, ship) {
