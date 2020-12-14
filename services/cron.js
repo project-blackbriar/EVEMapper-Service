@@ -112,8 +112,16 @@ const updatePilotSystem = async (accessToken, pilot) => {
         location
     };
 
+    if (!pilot.location) {
+        await Promise.all([
+                mapsService.setPilotLocationToMap(pilot, user.location),
+                ioService.pilots.setLocation(pilot.map, pilot, user.location)
+            ]
+        );
+    }
+
     //Pilot System has Changed
-    if (pilot.location.solar_system_id !== user.location.solar_system_id) {
+    if (pilot.location && pilot.location.solar_system_id !== user.location.solar_system_id) {
         await users.updateOne({
             _id: ObjectID(pilot._id)
         }, {
@@ -152,7 +160,9 @@ const handleSystemChange = async (pilot, locationTo) => {
 
 cron.schedule('*/5 * * * * *', async () => {
     if (await eveService.getHealth()) {
-        const allUsers = await users.find({}).toArray();
+        const allUsers = await users.find({
+            'onlineStatus.online': true
+        }).toArray();
         allUsers.map(async pilot => {
             throttle(async () => {
                 const accessToken = await RefreshToken(pilot);
