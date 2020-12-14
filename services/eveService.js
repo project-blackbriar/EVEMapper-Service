@@ -120,5 +120,24 @@ module.exports = {
         } catch (ex) {
             console.log(ex);
         }
+    },
+    async route(origin, destination, {
+        connections,
+        flag
+    }) {
+        try {
+            const response = await ESI.get(`/route/${origin}/${destination}/`, {
+                params: {
+                    flag,
+                    connections: connections.map(con => `${con.from}|${con.to},${con.to}|${con.from}`).join(',')
+                }
+            });
+            return response.data;
+        } catch (ex) {
+            console.log(ex.response);
+            return {
+                error: "No Route Found"
+            };
+        }
     }
 };

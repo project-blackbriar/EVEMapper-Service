@@ -11,6 +11,7 @@ const IsAuth = require('./../middleware/auth');
 const mapService = require('./../services/mapService');
 const userService = require('./../services/userService');
 const systemService = require('./../services/systemService');
+const eveService = require('./../services/eveService');
 const ioService = require('./../services/ioService');
 
 
@@ -105,6 +106,33 @@ router.post('/:id/pilot/:system_id', IsAuth, async (req, res) => {
         }
     });
     return res.sendStatus(200);
+});
+
+router.get('/:id/routes/:origin', IsAuth, async (req, res) => {
+    if (req.pilot.routes) {
+        const connections = await mapService.getConnections(req.params.id)
+        const routes = await Promise.all(req.pilot.routes.map(async route => {
+            const routeIds = await eveService.route(req.params.origin, route.destination, {
+                flag: route.flag,
+                connections
+            });
+            if (routeIds.error) {
+                return {
+                    systems: routeIds.error,
+                    flag: route.flag,
+                    destination: await systemService.getBySystemId(route.destination),
+                };
+            }
+            return {
+                destination: await systemService.getBySystemId(route.destination),
+                flag: route.flag,
+                systems: await Promise.all(routeIds.map(id => {
+                    return systemService.getBySystemId(id);
+                }))
+            };
+        }));
+        res.send(routes);
+    } else res.send([]);
 });
 
 module.exports = router;

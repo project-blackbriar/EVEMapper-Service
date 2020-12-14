@@ -1,6 +1,7 @@
 const db = require('./../db');
 const ObjectID = require('mongodb').ObjectID;
 const maps = db.Database().collection('maps');
+const eveService = require('./eveService');
 
 module.exports = {
     async addPilotToMap(mapId, pilot) {
@@ -78,27 +79,39 @@ module.exports = {
         });
     },
     async addConnectionToMap(mapId, systemFrom, systemTo) {
-        const newConnection = {
-            from: systemFrom,
-            to: systemTo,
-            size: "?",
-            eol: false,
-            status: 1
-        };
-        const insert = await maps.findOneAndUpdate({
+        const [there, back] = await Promise.all([
+            maps.findOne({
                 _id: ObjectID(mapId),
-                $or: [
-                    {'connections.from': {$ne: systemFrom}},
-                    {'connections.to': {$ne: systemTo}}
-                ]
-            },
-            {
-                $push: {
-                    "connections": newConnection
+                'connections.to': systemTo,
+                'connections.from': systemFrom
+            }),
+            maps.findOne({
+                _id: ObjectID(mapId),
+                'connections.from': systemTo,
+                'connections.to': systemFrom
+            })
+        ]);
+        if (there || back) {
+            return null;
+        } else {
+            const newConnection = {
+                from: systemFrom,
+                to: systemTo,
+                size: "?",
+                eol: false,
+                status: 1
+            };
+            await maps.updateOne({
+                    _id: ObjectID(mapId),
+                },
+                {
+                    $push: {
+                        "connections": newConnection
+                    }
                 }
-            }
-        );
-        return insert.value !== null ? newConnection : null;
+            );
+            return newConnection;
+        }
     },
     async updateConnectionInMap(mapId, connection) {
         try {
@@ -114,6 +127,12 @@ module.exports = {
         } catch (ex) {
 
         }
+    },
+    async getConnections(mapId) {
+        const data = await maps.findOne({
+            _id: ObjectID(mapId)
+        });
+        return data.connections;
     },
     async removeConnectionsForSystem(mapId, system_id) {
         const intId = parseInt(system_id);

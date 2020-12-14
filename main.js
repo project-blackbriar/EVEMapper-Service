@@ -24,6 +24,7 @@ console.log('Booting Service and Database');
 db.Connect().then(_ => {
     app.use('/auth', require('./routes/auth'));
     app.use('/maps', require('./routes/maps'));
+    app.use('/users', require('./routes/users'));
     app.use('/systems', require('./routes/systems'));
     app.emit('ready');
     require('./services/cron');

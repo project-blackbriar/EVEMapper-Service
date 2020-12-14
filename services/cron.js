@@ -135,7 +135,8 @@ const handleSystemChange = async (pilot, locationTo) => {
             systemService.getBySystemId(locationTo.solar_system_id)
         ]
     );
-    if (systemFrom.type === 'J' || systemTo.type === 'J') {
+    if (systemFrom.type === 'J' ||
+        systemTo.type === 'J') {
         const [mapSystemFrom, mapSystemTo, mapConnection] = await Promise.all([
             mapsService.addSystemToMap(pilot.map, systemFrom),
             mapsService.addSystemToMap(pilot.map, systemTo),
