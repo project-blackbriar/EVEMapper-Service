@@ -55,13 +55,16 @@ const RefreshToken = async ({expires_in, access_token, refresh_token}) => {
 const updatePilotShip = async (accessToken, pilot) => {
     const ship = await eveService.getPilotShip({token: accessToken, CharacterID: pilot.CharacterID});
     if (ship) {
-
         const user = {
             ship
         };
         //Pilot Ship has Changed
         if (!pilot.ship || user.ship.ship_item_id !== pilot.ship.ship_item_id) {
             const type = await eveService.getType(ship.ship_type_id);
+            // Check for unicode escape in ship name and unescape if necessary
+            if (user.ship.ship_name.substring(0, 2) == 'u\'') {
+                user.ship.ship_name = JSON.parse('"' + user.ship.ship_name.substr(2, user.ship.ship_name.length - 3) + '"')
+            }
             user.ship = {
                 ...user.ship,
                 type: type.name
