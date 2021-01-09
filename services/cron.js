@@ -155,6 +155,13 @@ const handleSystemChange = async (pilot, locationTo) => {
     );
     if (systemFrom.type === 'J' ||
         systemTo.type === 'J') {
+            // Adding offset from origin system
+            const map = await maps.findOne({
+                _id: pilot.map
+            })
+            const locationFrom = map.locations.find(loc => loc.system_id == pilot.location.solar_system_id)
+            systemTo.top = locationFrom.top + 100
+            systemTo.left = locationFrom.left + 20
         const [mapSystemFrom, mapSystemTo, mapConnection] = await Promise.all([
             mapsService.addSystemToMap(pilot.map, systemFrom),
             mapsService.addSystemToMap(pilot.map, systemTo),
