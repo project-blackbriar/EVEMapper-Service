@@ -17,7 +17,11 @@ const ioService = require('./../services/ioService');
 
 router.get('/', IsAuth, async (req, res) => {
     const data = (await maps.find({
-        active: true
+        active: true,
+        $or: [
+            {corporation_whitelist: req.pilot.corporation_id},
+            {character_whitelist: parseInt(req.pilot.CharacterID)}
+        ]
     }, {
         name: true,
         active: true
@@ -28,7 +32,11 @@ router.get('/', IsAuth, async (req, res) => {
 router.get('/:id', IsAuth, async (req, res) => {
     const data = (await maps.findOne({
         active: true,
-        _id: ObjectId(req.params.id)
+        _id: ObjectId(req.params.id),
+        $or: [
+            {corporation_whitelist: req.pilot.corporation_id},
+            {character_whitelist: parseInt(req.pilot.CharacterID)}
+        ]
     }, {
         name: true,
         active: true
