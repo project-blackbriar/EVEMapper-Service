@@ -159,8 +159,11 @@ const handleSystemChange = async (pilot, locationTo) => {
             const map = await maps.findOne({
                 _id: pilot.map
             })
-            const locationFrom = map.locations.find(loc => loc.system_id == pilot.location.solar_system_id)
-            if (systemTo && systemFrom){
+            let locationFrom
+            if (map){
+                locationFrom = map.locations.find(loc => loc.system_id == pilot.location.solar_system_id)
+            }
+            if (systemTo && locationFrom){
                 systemTo.top = locationFrom.top + 100
                 systemTo.left = locationFrom.left + 20
             }
