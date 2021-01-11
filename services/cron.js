@@ -133,6 +133,12 @@ const updatePilotSystem = async (accessToken, pilot) => {
         token: accessToken,
         CharacterID: pilot.CharacterID
     })) ?? {name: "Unknown", solar_system_id: -1};
+
+    if (location.solar_system_id === -1) {
+        console.warn('Failed getting user location. Skipping until next update.')
+        return
+    }
+
     const user = {
         location
     };
