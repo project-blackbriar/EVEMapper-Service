@@ -13,6 +13,7 @@ module.exports = {
                 return true;
             }
         } catch (ex) {
+            console.error("Error getting ESI health.", ex.message)
             return false;
         }
     },
@@ -36,6 +37,7 @@ module.exports = {
             });
             return response.data;
         } catch (ex) {
+            console.error("Error getting pilot's status.", ex.message)
             return null;
         }
     },
@@ -49,7 +51,8 @@ module.exports = {
             });
             return response.data;
         } catch (ex) {
-            return null;
+            console.error("Error getting pilot's location.", ex.message)
+            return null
         }
     },
 
@@ -62,6 +65,7 @@ module.exports = {
             });
             return response.data;
         } catch (ex) {
+            console.error("Error getting pilot's ship.", ex.message)
             return null;
         }
     },
@@ -95,6 +99,7 @@ module.exports = {
             });
             return response.data;
         } catch (ex) {
+            console.error("Error getting structure.", ex.message)
             return false;
         }
     },
@@ -118,7 +123,7 @@ module.exports = {
             });
             return response.status;
         } catch (ex) {
-            console.log(ex);
+            console.error("Error setting waypoint.", ex.message)
         }
     },
     async route(origin, destination, {
