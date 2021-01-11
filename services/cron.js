@@ -153,8 +153,9 @@ const handleSystemChange = async (pilot, locationTo) => {
             systemService.getBySystemId(locationTo.solar_system_id)
         ]
     );
-    if (systemFrom.type === 'J' ||
-        systemTo.type === 'J') {
+    // Getting 'cannot read system_id of null', so added a truthiness check
+    if ((systemFrom && systemTo) && (systemFrom.type === 'J' ||
+        systemTo.type === 'J')) {
             // Adding offset from origin system
             const map = await maps.findOne({
                 _id: pilot.map
