@@ -10,9 +10,6 @@ const io = require('socket.io')(http);
 
 module.exports.io = io;
 
-// Performance monitoring - for DEV
-app.use(require('express-status-monitor')());
-
 app.use(cors({origin: true, credentials: true}));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: true}));
