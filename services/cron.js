@@ -185,7 +185,7 @@ const handleSystemChange = async (pilot, locationTo) => {
         systemTo.type === 'J') {
             // Adding offset from origin system
             const map = await maps.findOne({
-                _id: pilot.map
+                _id: ObjectID(pilot.map)
             })
             let locationFrom
             if (map){
