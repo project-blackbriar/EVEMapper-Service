@@ -100,6 +100,8 @@ router.get('/refresh', IsAuth, async (req, res) => {
             delete refreshData.refresh_token;
             res.send(refreshData);
         } catch (e) {
+            console.error('Error trying to refresh token for pilot:', req.pilot.CharacterName)
+            console.error(e.message)
             res.sendStatus(403);
         }
     } else {

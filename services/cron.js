@@ -32,23 +32,40 @@ const ESIAuth = axios.create({
     baseURL: 'https://login.eveonline.com'
 });
 
-const RefreshToken = async ({expires_in, access_token, refresh_token}) => {
-    if (Date.now() < expires_in) {
-        return access_token;
+const RefreshToken = async (pilot) => {
+    if (Date.now() < pilot.expires_in) {
+        return pilot.access_token;
     }
-    const response = await ESIAuth.post('/oauth/token', qs.stringify({
-        grant_type: 'refresh_token',
-        refresh_token: refresh_token
-    }), {
-        auth: {
-            username: process.env.EVE_CLIENT_ID,
-            password: process.env.EVE_APP_SECRET
-        },
-        headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Host": 'login.eveonline.com'
+    let response
+    try {
+        response = await ESIAuth.post('/oauth/token', qs.stringify({
+            grant_type: 'refresh_token',
+            refresh_token: pilot.refresh_token
+        }), {
+            auth: {
+                username: process.env.EVE_CLIENT_ID,
+                password: process.env.EVE_APP_SECRET
+            },
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Host": 'login.eveonline.com'
+            }
+        });
+    } catch (err) {
+        console.error("Failed refreshing token.", err.message)
+        // Set user as offline
+        pilot.onlineStatus = {
+            ...pilot.onlineStatus,
+            online: false
         }
-    });
+        pilot.refresh_token = "-1"
+        await users.updateOne({
+            _id: ObjectID(pilot._id)
+        }, {
+            $set: pilot
+        });
+        return -1
+    }
     return response.data.access_token;
 };
 
@@ -92,17 +109,22 @@ const updatePilotOnlineStatus = async (accessToken, pilot) => {
     }, {
         $set: user
     });
-    //Pilot Online Status Changed
-    if (!pilot.onlineStatus || pilot.onlineStatus?.online !== user.onlineStatus.online) {
-        if (user.onlineStatus.online) {
-            console.log(`Setting ${pilot.CharacterName} as Online`);
-            await mapsService.addPilotToMap(pilot.map, pilot);
-            await ioService.pilots.add(pilot.map, pilot);
-        } else {
-            console.log(`Setting ${pilot.CharacterName} as Offline`);
-            await mapsService.removePilotFromMaps(pilot);
-            await ioService.pilots.remove(pilot.map, pilot);
+    //Pilot Online Status Changed ; cannot read property 'online' of null
+    try {
+        if (!pilot.onlineStatus || pilot.onlineStatus?.online !== user.onlineStatus.online) {
+            if (user.onlineStatus.online) {
+                console.log(`Setting ${pilot.CharacterName} as Online`);
+                await mapsService.addPilotToMap(pilot.map, pilot);
+                await ioService.pilots.add(pilot.map, pilot);
+            } else {
+                console.log(`Setting ${pilot.CharacterName} as Offline`);
+                await mapsService.removePilotFromMaps(pilot);
+                await ioService.pilots.remove(pilot.map, pilot);
+            }
         }
+    } catch (err) {
+        console.error('Error while updating pilot online status:', err.message)
+        console.error('user.onlineStatus = ', user.onlineStatus)
     }
 };
 
@@ -154,8 +176,13 @@ const handleSystemChange = async (pilot, locationTo) => {
         ]
     );
     // Getting 'cannot read system_id of null', so added a truthiness check
-    if ((systemFrom && systemTo) && (systemFrom.type === 'J' ||
-        systemTo.type === 'J')) {
+    if (!systemFrom || !systemTo) {
+        console.log('SystemFrom or SystemTo is null. Why?')
+        console.log(systemFrom ? "systemFrom exists" : "systemFrom no exists")
+        console.log(systemTo ? "systemTo exists" : "systemTo no exists")
+    }
+    if (systemFrom.type === 'J' ||
+        systemTo.type === 'J') {
             // Adding offset from origin system
             const map = await maps.findOne({
                 _id: pilot.map
@@ -169,7 +196,7 @@ const handleSystemChange = async (pilot, locationTo) => {
                 systemTo.left = locationFrom.left + 20
             }
         const [mapSystemFrom, mapSystemTo, mapConnection] = await Promise.all([
-            mapsService.addSystemToMap(pilot.map, systemFrom),
+            systemFrom ? mapsService.addSystemToMap(pilot.map, systemFrom) : null,
             mapsService.addSystemToMap(pilot.map, systemTo),
             mapsService.addConnectionToMap(pilot.map, systemFrom.system_id, systemTo.system_id)
         ]);
@@ -189,10 +216,14 @@ cron.schedule('*/5 * * * * *', async () => {
         allUsers.map(async pilot => {
             throttle(async () => {
                 const accessToken = await RefreshToken(pilot);
-                await Promise.all([
-                    updatePilotSystem(accessToken, pilot),
-                    updatePilotShip(accessToken, pilot)
-                ]);
+                if (accessToken === -1) { // Check token validity
+                    console.warn(`Error when checking ship and location. Token for ${pilot.CharacterName} is invalid.`)
+                } else {
+                    await Promise.all([
+                        updatePilotSystem(accessToken, pilot),
+                        updatePilotShip(accessToken, pilot)
+                    ]);
+                }
             });
         });
     } else {
@@ -202,14 +233,18 @@ cron.schedule('*/5 * * * * *', async () => {
 
 cron.schedule('*/30 * * * * *', async () => {
     if (await eveService.getHealth()) {
-        console.log('Running Online Status Checks');
+        //console.log('Running Online Status Checks');
         const allUsers = await users.find({}).toArray();
         allUsers.map(async pilot => {
             throttle(async () => {
                 const accessToken = await RefreshToken(pilot);
-                await Promise.all([
-                    updatePilotOnlineStatus(accessToken, pilot)
-                ]);
+                if (accessToken === -1) { // Check token validity
+                    console.warn(`Error at Online status check. Token for ${pilot.CharacterName} is invalid.`);
+                } else {
+                    await Promise.all([
+                        updatePilotOnlineStatus(accessToken, pilot)
+                    ]);
+                }
             });
         });
     } else {

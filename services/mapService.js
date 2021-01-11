@@ -125,7 +125,8 @@ module.exports = {
                 }
             });
         } catch (ex) {
-
+            console.warn("Failed updating connection in map. Map ID:", mapId, "Connection:", connection)
+            console.warm(ex.message)
         }
     },
     async getConnections(mapId) {
