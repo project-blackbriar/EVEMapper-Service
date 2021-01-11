@@ -178,8 +178,9 @@ const handleSystemChange = async (pilot, locationTo) => {
     // Getting 'cannot read system_id of null', so added a truthiness check
     if (!systemFrom || !systemTo) {
         console.log('SystemFrom or SystemTo is null. Why?')
-        console.log(systemFrom ? "systemFrom exists" : "systemFrom no exists")
-        console.log(systemTo ? "systemTo exists" : "systemTo no exists")
+        console.log(`Pilot ${pilot.CharacterName} jumping from ${pilot.location.solar_system_id} to ${locationTo.solar_system_id}`)
+        console.log(systemFrom ? "systemFrom exists" : "systemFrom is null")
+        console.log(systemTo ? "systemTo exists" : "systemTo is null")
     }
     if (systemFrom.type === 'J' ||
         systemTo.type === 'J') {
