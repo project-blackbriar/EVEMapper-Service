@@ -58,7 +58,6 @@ const RefreshToken = async (pilot) => {
             ...pilot.onlineStatus,
             online: false
         }
-        pilot.refresh_token = "-1"
         await users.updateOne({
             _id: ObjectID(pilot._id)
         }, {
@@ -104,6 +103,9 @@ const updatePilotOnlineStatus = async (accessToken, pilot) => {
     const user = {
         onlineStatus
     };
+    if (!onlineStatus) {
+        return
+    }
     await users.updateOne({
         _id: ObjectID(pilot._id)
     }, {
@@ -132,10 +134,10 @@ const updatePilotSystem = async (accessToken, pilot) => {
     const location = (await eveService.getPilotLocation({
         token: accessToken,
         CharacterID: pilot.CharacterID
-    })) ?? {name: "Unknown", solar_system_id: -1};
+    }));
 
     if (location.solar_system_id === -1) {
-        console.warn('Failed getting user location. Skipping until next update.')
+        console.warn('Failed getting user location. Skipping until next update')
         return
     }
 

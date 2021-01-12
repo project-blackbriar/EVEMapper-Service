@@ -52,7 +52,7 @@ module.exports = {
             return response.data;
         } catch (ex) {
             console.error("Error getting pilot's location.", ex.message)
-            return null
+            return {name: "Unknown", solar_system_id: -1}
         }
     },
 
