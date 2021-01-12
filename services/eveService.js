@@ -139,7 +139,7 @@ module.exports = {
             });
             return response.data;
         } catch (ex) {
-            console.log(ex.response);
+            console.log(ex.response.data);
             return {
                 error: "No Route Found"
             };

@@ -183,32 +183,32 @@ const handleSystemChange = async (pilot, locationTo) => {
             systemService.getBySystemId(locationTo.solar_system_id)
         ]
     );
-    // Getting 'cannot read system_id of null', so added a truthiness check
-    if (!systemFrom || !systemTo) {
-        console.log('SystemFrom or SystemTo is null. Why?')
-        console.log(`Pilot ${pilot.CharacterName} jumping from ${pilot.location.solar_system_id} to ${locationTo.solar_system_id}`)
-        console.log(systemFrom ? "systemFrom exists" : "systemFrom is null")
-        console.log(systemTo ? "systemTo exists" : "systemTo is null")
-    }
     if (systemFrom.type === 'J' ||
-        systemTo.type === 'J') {
-            // Adding offset from origin system
-            const map = await maps.findOne({
-                _id: ObjectID(pilot.map)
-            })
-            let locationFrom
-            if (map){
-                locationFrom = map.locations.find(loc => loc.system_id == pilot.location.solar_system_id)
-            }
-            if (systemTo && locationFrom){
-                systemTo.top = locationFrom.top + 100
-                systemTo.left = locationFrom.left + 20
-            }
+    systemTo.type === 'J') {
+        // Add locations to map
         const [mapSystemFrom, mapSystemTo, mapConnection] = await Promise.all([
             systemFrom ? mapsService.addSystemToMap(pilot.map, systemFrom) : null,
             mapsService.addSystemToMap(pilot.map, systemTo),
             mapsService.addConnectionToMap(pilot.map, systemFrom.system_id, systemTo.system_id)
         ]);
+        if (mapSystemTo) { // If locationTo was added to the map
+            // Find details for origin location
+            const map = await maps.findOne({
+                _id: ObjectID(pilot.map)
+            }) 
+            const locationFrom = map.locations.find(loc => loc.system_id == pilot.location.solar_system_id)
+            // Adding offset from origin system
+            if (systemTo && locationFrom){
+                systemTo.top = locationFrom.top + 100
+                systemTo.left = locationFrom.left + 20
+            }
+            // Adding calculated alias
+            if (systemTo.type === 'J') { // But only for WHs
+                const name = await calculateName(pilot.map, systemTo.system_id)
+                systemTo.alias = name
+            }
+            await mapsService.updateSystemInMap(pilot.map, systemTo)
+        }
         await Promise.all([
             mapSystemFrom ? ioService.systems.add(pilot.map, systemFrom) : null,
             mapSystemTo ? ioService.systems.add(pilot.map, systemTo) : null,
@@ -216,6 +216,76 @@ const handleSystemChange = async (pilot, locationTo) => {
         ]);
     }
 };
+
+const calculateName = async (mapID, system_id) => {
+    const map = await maps.findOne({
+        _id: ObjectID(mapID)
+    })
+    if (!map) {return}
+    var Q = []
+    var count = 0
+    var seq = []
+    const locations = [...map.locations]
+    const connections = [...map.connections]
+    const origin = locations.find(l => l.system_id === system_id)
+    if (!origin) {
+        console.log('Location not found on map while calculating alias.')
+        return
+    }
+    if (origin.name === "J160941") {
+        return
+    }
+    Q.push(origin)
+    Q[0].searched = true
+    while (Q.length > 0) {
+        const point = Q.shift()
+        if (point.security === origin.security) {
+            count ++
+            if (point.alias){
+                seq.push(point.alias.substr(2,2))
+                seq.sort()
+            }
+        }
+        for (const id of findConnected(point.system_id, connections)) {
+            const node = locations.find(l => l.system_id === id)
+            if (node.name === "J160941") {
+                continue
+            }
+            if (!node.searched) {
+                node.searched = true
+                Q.push(node)
+            }
+        }
+    }
+    const name = origin.security + findMissingChar(seq)
+    console.log('Found', count, 'systems with class', origin.security)
+    console.log('Suggested name for', origin.name, 'is:', name)
+    return name
+};
+
+const findConnected = (systemID, connections) => {
+    let connected = []
+    for (const connection of connections) {
+        if (connection.from === systemID) {
+            connected.push(connection.to)
+        }
+        if (connection.to === systemID) {
+            connected.push(connection.from)
+        }
+    }
+    return connected
+}
+
+const findMissingChar = (sequence) => {
+    const seq = sequence.join('')
+    for (let i = 65; i < 91; i++) {
+        if (seq.includes(String.fromCharCode(i))) {
+            continue
+        }
+        return String.fromCharCode(i)
+    }
+    return false
+}
 
 cron.schedule('*/5 * * * * *', async () => {
     if (await eveService.getHealth()) {
