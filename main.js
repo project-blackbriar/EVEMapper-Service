@@ -1,3 +1,6 @@
+// add timestamps in front of log messages
+require('console-stamp')(console, '[HH:MM:ss.l]');
+
 const express = require('express');
 const bodyParser = require("body-parser");
 const cors = require("cors");
