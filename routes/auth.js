@@ -57,9 +57,9 @@ router.post('/login', async (req, res) => {
             new: true
         });
         res.send({
+            ...dbUser.value,
             ...accessToken,
             ...charData,
-            ...dbUser,
             refresh_token: undefined
         });
     } catch (ex) {
