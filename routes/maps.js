@@ -87,6 +87,11 @@ router.put('/:id/location', IsAuth, async (req, res) => {
     return res.sendStatus(200);
 });
 
+router.post('/:id/connection/add', IsAuth, async (req, res) => {
+    await mapService.addConnectionToMap(req.params.id, req.body.connection.from, req.body.connection.to)
+    return res.sendStatus(200)
+});
+
 router.put('/:id/connection', IsAuth, async (req, res) => {
     await Promise.all([
         mapService.updateConnectionInMap(req.params.id, req.body),
@@ -94,6 +99,11 @@ router.put('/:id/connection', IsAuth, async (req, res) => {
     ]);
     return res.sendStatus(200);
 });
+
+router.post('/:id/connection/delete', IsAuth, async (req, res) => {
+    await mapService.deleteConnection(req.params.id, req.body.connection)
+    return res.sendStatus(200)
+})
 
 router.post('/:id/pilot/:system_id', IsAuth, async (req, res) => {
     await maps.findOneAndUpdate({

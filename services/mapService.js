@@ -145,5 +145,14 @@ module.exports = {
                 'connections': {$or: [{from: intId}, {to: intId}]}
             }
         });
+    },
+    async deleteConnection(mapId, connection) {
+        const updateFrom = await maps.updateOne({
+            _id: ObjectID(mapId)
+        }, {
+            $pull: {
+                'connections': {from: connection.from, to: connection.to}
+            }
+        });
     }
 };
