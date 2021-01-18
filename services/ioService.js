@@ -16,8 +16,11 @@ module.exports = {
         async add(mapId, connection) {
             await io.to(mapId).emit('addConnection', connection);
         },
-        async remove(mapId, system_id) {
-            await io.to(mapId).emit('removeConnection', system_id);
+        async remove(mapId, connection) {
+            await io.to(mapId).emit('removeConnection', connection);
+        },
+        async delink(mapId, system_id) {
+            await io.to(mapId).emit('delinkSystem', system_id);
         },
         async update(mapId, connection) {
             await io.to(mapId).emit('updateConnection', connection);
