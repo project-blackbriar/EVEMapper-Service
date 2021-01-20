@@ -154,14 +154,11 @@ const updatePilotSystem = async (accessToken, pilot) => {
     }, {
         $set: user
     });
-
-    if (!pilot.location) {
         await Promise.all([
                 mapsService.setPilotLocationToMap(pilot, user.location),
                 ioService.pilots.setLocation(pilot.map, pilot, user.location)
             ]
         );
-    }
 
     //Pilot System has Changed
     if (pilot.location && pilot.location.solar_system_id !== user.location.solar_system_id) {
