@@ -154,11 +154,22 @@ const updatePilotSystem = async (accessToken, pilot) => {
     }, {
         $set: user
     });
+    const userNotOnMap = await maps.findOne({
+        _id: ObjectID(pilot.map),
+        pilots: {
+            $elemMatch: {
+                'CharacterName': pilot.CharacterName,
+                'system_id': null
+            }
+        }
+    })
+    if (userNotOnMap){
         await Promise.all([
                 mapsService.setPilotLocationToMap(pilot, user.location),
                 ioService.pilots.setLocation(pilot.map, pilot, user.location)
             ]
         );
+    }
 
     //Pilot System has Changed
     if (pilot.location && pilot.location.solar_system_id !== user.location.solar_system_id) {
