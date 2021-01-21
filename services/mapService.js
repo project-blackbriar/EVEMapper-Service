@@ -82,13 +82,21 @@ module.exports = {
         const [there, back] = await Promise.all([
             maps.findOne({
                 _id: ObjectID(mapId),
-                'connections.to': systemTo,
-                'connections.from': systemFrom
+                connections: {
+                    $elemMatch: {
+                        'to': systemTo,
+                        'from': systemFrom
+                    }
+                }
             }),
             maps.findOne({
                 _id: ObjectID(mapId),
-                'connections.from': systemTo,
-                'connections.to': systemFrom
+                connections: {
+                    $elemMatch: {
+                        'to': systemFrom,
+                        'from': systemTo
+                    }
+                }
             })
         ]);
         if (there || back) {
@@ -97,6 +105,7 @@ module.exports = {
             const newConnection = {
                 from: systemFrom,
                 to: systemTo,
+                key: `${systemFrom}:${systemTo}`,
                 size: "?",
                 eol: false,
                 status: 1
