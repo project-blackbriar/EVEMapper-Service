@@ -342,3 +342,47 @@ cron.schedule('*/30 * * * * *', async () => {
         console.log('EVE is Offline');
     }
 }, {});
+
+cron.schedule('*/5 * * * *', async () => {
+    // Cleanup task to clear old connections and orphan systems
+    const maplist = await maps.find({}).toArray();
+    const now = new Date()
+    maplist.forEach(async map => {
+        // Find old connections
+        map.connections.forEach(async connection => {
+            var age = now - connection.creation_time
+            if (age / 1000 >= 48 * 60 * 60) { // If older than 48h
+                await Promise.all([
+                    mapsService.deleteConnection(map._id, connection),
+                    ioService.connections.remove(map._id, connection)
+                ]);
+            }
+            if (connection.eol) {
+                var eolAge = now - connection.eol_time
+                if (eolAge / 1000 >= 4 * 60 * 60) { // If EOL more than 4 hours
+                    await Promise.all([
+                        mapsService.deleteConnection(map._id, connection),
+                        ioService.connections.remove(map._id, connection)
+                    ]);
+                }
+            }
+        })
+        // Find orphan systems
+        map.locations.forEach(async location => {
+            if (location.system_id !== map.home) {
+                const systemAge = now - location.creation_time
+                if (systemAge / 1000 >= 10 * 60) { // System on map more than 10 minutes
+                    const connected = findConnected(location.system_id, map.connections)
+                    console.log('Connected:', connected)
+                    if (connected.length === 0) {
+                        await Promise.all([
+                            mapsService.removeSystemFromMap(map._id, location.system_id),
+                            ioService.systems.remove(map._id, location.system_id)
+                        ]);
+                    }
+                }
+            }
+        })
+    })
+
+}, {});

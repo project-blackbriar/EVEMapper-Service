@@ -48,6 +48,10 @@ module.exports = {
         });
     },
     async addSystemToMap(mapId, system) {
+        system = {
+            ...system,
+            creation_time: new Date()
+        }
         const {value: map} = await maps.findOneAndUpdate({
             _id: ObjectID(mapId),
             "locations.system_id": {$ne: system.system_id}
@@ -59,6 +63,10 @@ module.exports = {
         return map !== null;
     },
     async updateSystemInMap(mapId, system) {
+        system = {
+            ...system,
+            creation_time: new Date(system.creation_time)
+        }
         await maps.updateOne({
             _id: ObjectID(mapId),
             'locations.system_id': system.system_id,
@@ -108,7 +116,9 @@ module.exports = {
                 key: `${systemFrom}:${systemTo}`,
                 size: "?",
                 eol: false,
-                status: 1
+                status: 1,
+                creation_time: new Date(),
+                eol_time: null
             };
             await maps.updateOne({
                     _id: ObjectID(mapId),
@@ -124,6 +134,11 @@ module.exports = {
     },
     async updateConnectionInMap(mapId, connection) {
         try {
+            connection = {
+                ...connection,
+                creation_time: new Date(connection.creation_time),
+                eol_time: new Date(connection.eol_time)
+            }
             await maps.updateOne({
                 _id: ObjectID(mapId),
                 'connections.from': connection.from,
