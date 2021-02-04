@@ -373,7 +373,7 @@ cron.schedule('*/5 * * * *', async () => {
         map.locations.forEach(async location => {
             if (location.system_id !== map.home) {
                 const systemAge = now - location.creation_time
-                if (systemAge / 1000 >= 10 * 60) { // System on map more than 10 minutes
+                if (systemAge / 1000 >= 10 * 60 && !location.locked) { // System on map more than 10 minutes and !locked
                     const connected = findConnected(location.system_id, map.connections)
                     if (connected.length === 0) {
                         console.log('Deleting orphan location:', location.name)
