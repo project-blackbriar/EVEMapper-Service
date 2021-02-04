@@ -3,3 +3,4 @@ DBUrl="mongodb://localhost:27017/?authSource=admin:
 EVE_CLIENT_ID="1234abcd"
 EVE_APP_SECRET="appsecret"
 API_URL="http://localhost:3000"
+DISCORD_WEBHOOK_URL="https://discordapp.com/api/webhooks/xxx/yyy"

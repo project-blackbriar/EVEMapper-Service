@@ -352,6 +352,7 @@ cron.schedule('*/5 * * * *', async () => {
         map.connections.forEach(async connection => {
             var age = now - connection.creation_time
             if (age / 1000 >= 48 * 60 * 60) { // If older than 48h
+                console.log('Deleting connection because too old:', connection.key, 'Age:', age/1000)
                 await Promise.all([
                     mapsService.deleteConnection(map._id, connection),
                     ioService.connections.remove(map._id, connection)
@@ -360,6 +361,7 @@ cron.schedule('*/5 * * * *', async () => {
             if (connection.eol) {
                 var eolAge = now - connection.eol_time
                 if (eolAge / 1000 >= 4 * 60 * 60) { // If EOL more than 4 hours
+                    console.log('Deleting connection because EOL too long:', connection.key, 'Age:', eolAge/1000)
                     await Promise.all([
                         mapsService.deleteConnection(map._id, connection),
                         ioService.connections.remove(map._id, connection)
@@ -373,8 +375,8 @@ cron.schedule('*/5 * * * *', async () => {
                 const systemAge = now - location.creation_time
                 if (systemAge / 1000 >= 10 * 60) { // System on map more than 10 minutes
                     const connected = findConnected(location.system_id, map.connections)
-                    console.log('Connected:', connected)
                     if (connected.length === 0) {
+                        console.log('Deleting orphan location:', location.name)
                         await Promise.all([
                             mapsService.removeSystemFromMap(map._id, location.system_id),
                             ioService.systems.remove(map._id, location.system_id)
