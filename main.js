@@ -1,3 +1,6 @@
+// add timestamps in front of log messages
+require('console-stamp')(console, '[HH:MM:ss.l]');
+
 const express = require('express');
 const bodyParser = require("body-parser");
 const cors = require("cors");
@@ -24,11 +27,10 @@ console.log('Booting Service and Database');
 db.Connect().then(_ => {
     app.use('/auth', require('./routes/auth'));
     app.use('/maps', require('./routes/maps'));
+    app.use('/users', require('./routes/users'));
     app.use('/systems', require('./routes/systems'));
     app.emit('ready');
-    require('./cron');
-
-
+    require('./services/cron');
 });
 
 const maps = db.Database().collection('maps');

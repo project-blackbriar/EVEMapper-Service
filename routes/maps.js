@@ -7,10 +7,21 @@ const maps = db.Database().collection("maps");
 const users = db.Database().collection("users");
 const ObjectId = require('mongodb').ObjectID;
 const IsAuth = require('./../middleware/auth');
-const {io} = require('./../main');
+
+const mapService = require('./../services/mapService');
+const userService = require('./../services/userService');
+const systemService = require('./../services/systemService');
+const eveService = require('./../services/eveService');
+const ioService = require('./../services/ioService');
+
+
 router.get('/', IsAuth, async (req, res) => {
     const data = (await maps.find({
-        active: true
+        active: true,
+        $or: [
+            {corporation_whitelist: req.pilot.corporation_id},
+            {character_whitelist: parseInt(req.pilot.CharacterID)}
+        ]
     }, {
         name: true,
         active: true
@@ -21,7 +32,11 @@ router.get('/', IsAuth, async (req, res) => {
 router.get('/:id', IsAuth, async (req, res) => {
     const data = (await maps.findOne({
         active: true,
-        _id: ObjectId(req.params.id)
+        _id: ObjectId(req.params.id),
+        $or: [
+            {corporation_whitelist: req.pilot.corporation_id},
+            {character_whitelist: parseInt(req.pilot.CharacterID)}
+        ]
     }, {
         name: true,
         active: true
@@ -30,77 +45,67 @@ router.get('/:id', IsAuth, async (req, res) => {
 });
 
 router.post('/active/:id', IsAuth, async (req, res) => {
-    await users.updateOne({
-        CharacterID: req.pilot.CharacterID
-    }, {
-        $set: {
-            map: req.params.id
+    try {
+        await Promise.all([
+            userService.setPilotMap(req.pilot, req.params.id),
+            mapService.removePilotFromMaps(req.pilot)
+        ]);
+        if (req.pilot.onlineStatus?.online) {
+            await mapService.addPilotToMap(req.params.id, req.pilot);
         }
-    });
-    res.sendStatus(200);
+        res.sendStatus(200);
+    } catch (ex) {
+        console.log(ex);
+        req.sendStatus(500);
+    }
 });
 
 /* Add new location to map */
 router.post('/:id/location', IsAuth, async (req, res) => {
-    const pilots = (await users.find({
-        'location.solar_system_id': req.body.system_id,
-        online: true
-    }).toArray()).map(val => {
-        return {
-            name: val.CharacterName,
-            ship: val.ship
-        };
-    });
-    const doc = {
-        ...req.body,
-        pilots: pilots
-    };
-    const data = await maps.findOneAndUpdate({
-        _id: ObjectId(req.params.id),
-        'locations.system_id': {$ne: req.body.system_id}
-    }, {
-        $push: {
-            'locations': doc,
-        }
-    });
-    io.to(req.pilot.map).emit('addLocation', {system: doc});
+    const system = await systemService.getBySystemId(req.body.system_id);
+    delete system._id;
+    if (await mapService.addSystemToMap(req.params.id, system)) {
+        await ioService.systems.add(req.params.id, system);
+    }
     return res.sendStatus(200);
 });
 
 /* Delete location from map */
 router.delete('/:id/location/:system_id', IsAuth, async (req, res) => {
-    const data = await maps.findOneAndUpdate({
-        _id: ObjectId(req.params.id),
-        'locations.system_id': parseInt(req.params.system_id)
-    }, {
-        $pull: {
-            'locations': {system_id: parseInt(req.params.system_id)},
-        }
-    });
-    /* Need to delete all links from other locations as well */
-    await maps.updateMany({
-        'locations.connections': req.params.system_id
-    }, {
-        $pull: {
-            'locations.$.connections': req.params.system_id
-        }
-    });
-    io.to(req.pilot.map).emit('removeLocation', req.params.system_id);
+    await mapService.removeConnectionsForSystem(req.params.id, req.params.system_id);
+    await mapService.removeSystemFromMap(req.params.id, req.params.system_id);
+    await ioService.connections.delink(req.params.id, req.params.system_id);
+    await ioService.systems.remove(req.params.id, req.params.system_id);
     return res.sendStatus(200);
 });
 /* Update location details */
 router.put('/:id/location', IsAuth, async (req, res) => {
-    const data = await maps.updateOne({
-        _id: ObjectId(req.params.id),
-        'locations.system_id': req.body.system_id,
-    }, {
-        $set: {
-            'locations.$': req.body,
-        }
-    });
-    io.to(req.params.id).emit('updateLocation', req.body);
+    await Promise.all([
+        mapService.updateSystemInMap(req.params.id, req.body),
+        ioService.systems.update(req.params.id, req.body)
+    ]);
     return res.sendStatus(200);
 });
+
+router.post('/:id/connection/add', IsAuth, async (req, res) => {
+    await mapService.addConnectionToMap(req.params.id, req.body.connection.from, req.body.connection.to)
+    ioService.connections.add(req.params.id, req.body.connection)
+    return res.sendStatus(200)
+});
+
+router.put('/:id/connection', IsAuth, async (req, res) => {
+    await Promise.all([
+        mapService.updateConnectionInMap(req.params.id, req.body),
+        ioService.connections.update(req.params.id, req.body)
+    ]);
+    return res.sendStatus(200);
+});
+
+router.post('/:id/connection/delete', IsAuth, async (req, res) => {
+    await mapService.deleteConnection(req.params.id, req.body.connection)
+    ioService.connections.remove(req.params.id, req.body.connection)
+    return res.sendStatus(200)
+})
 
 router.post('/:id/pilot/:system_id', IsAuth, async (req, res) => {
     await maps.findOneAndUpdate({
@@ -121,6 +126,33 @@ router.post('/:id/pilot/:system_id', IsAuth, async (req, res) => {
         }
     });
     return res.sendStatus(200);
+});
+
+router.get('/:id/routes/:origin', IsAuth, async (req, res) => {
+    if (req.pilot.routes) {
+        const connections = await mapService.getConnections(req.params.id);
+        const routes = await Promise.all(req.pilot.routes.map(async route => {
+            const routeIds = await eveService.route(req.params.origin, route.destination, {
+                flag: route.flag,
+                connections
+            });
+            if (routeIds.error) {
+                return {
+                    systems: routeIds.error,
+                    flag: route.flag,
+                    destination: await systemService.getBySystemId(route.destination),
+                };
+            }
+            return {
+                destination: await systemService.getBySystemId(route.destination),
+                flag: route.flag,
+                systems: await Promise.all(routeIds.map(id => {
+                    return systemService.getBySystemId(id);
+                }))
+            };
+        }));
+        res.send(routes);
+    } else res.send([]);
 });
 
 module.exports = router;

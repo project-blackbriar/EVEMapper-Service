@@ -9,6 +9,10 @@ const IsAuth = require('./../middleware/auth');
 const ESIAuth = axios.create({
     baseURL: 'https://login.eveonline.com'
 });
+const esiUrl = 'https://esi.evetech.net/latest/';
+const ESI = axios.create({
+    baseURL: esiUrl
+});
 
 router.post('/login', async (req, res) => {
     try {
@@ -34,6 +38,7 @@ router.post('/login', async (req, res) => {
             }
         });
         const charData = verifyResponse.data;
+        const pilotDataResponse = await ESI.get(`/characters/${charData.CharacterID.toString()}/`)
         const dbUser = await users.findOneAndUpdate({
             CharacterID: charData.CharacterID.toString()
         }, {
@@ -44,16 +49,17 @@ router.post('/login', async (req, res) => {
                 expires_in: Date.now() + (accessToken.expires_in * 1000),
                 CharacterName: charData.CharacterName,
                 refresh_token: accessToken.refresh_token,
-                access_token: accessToken.access_token
+                access_token: accessToken.access_token,
+                corporation_id: pilotDataResponse.data.corporation_id
             }
         }, {
             upsert: true,
             new: true
         });
         res.send({
+            ...dbUser.value,
             ...accessToken,
             ...charData,
-            ...dbUser,
             refresh_token: undefined
         });
     } catch (ex) {
@@ -79,19 +85,23 @@ router.get('/refresh', IsAuth, async (req, res) => {
                     "Host": 'login.eveonline.com'
                 }
             });
+            const pilotDataResponse = await ESI.get(`/characters/${req.pilot.CharacterID}/`)
             const refreshData = response.data;
             await users.updateOne({
-                CharacterID: req.query.CharacterID,
-                access_token: req.query.access_token
+                CharacterID: req.pilot.CharacterID,
+                access_token: req.pilot.access_token
             }, {
                 $set: {
                     access_token: refreshData.access_token,
                     lastLogin: new Date(),
+                    corporation_id: pilotDataResponse.data.corporation_id
                 }
             });
             delete refreshData.refresh_token;
             res.send(refreshData);
         } catch (e) {
+            console.error('Error trying to refresh token for pilot:', req.pilot.CharacterName)
+            console.error(e.message)
             res.sendStatus(403);
         }
     } else {

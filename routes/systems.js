@@ -9,7 +9,6 @@ const IsAuth = require('./../middleware/auth');
 
 
 router.get('/:id', IsAuth, async (req, res) => {
-    console.log('Getting System')
     const data = (await systems.findOne({
         system_id: parseInt(req.params.id)
     }));
